@@ -6,7 +6,7 @@
 
 実行例
 
-<video class="demo" src="https://github.com/user-attachments/assets/0837c8d3-1462-4c09-a26c-a0b067f4d4e2"　width="600"></video>
+<video class="demo" src="https://github.com/user-attachments/assets/0837c8d3-1462-4c09-a26c-a0b067f4d4e2"></video>
 
 [カラー実行例（ニコニコ動画）](https://www.nicovideo.jp/watch/sm45003861)
 
