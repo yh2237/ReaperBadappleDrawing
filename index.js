@@ -1,35 +1,30 @@
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
+const yaml = require('js-yaml');
 const processMonochromeFrame = require("./util/monochrome");
 const processColourFrame = require("./util/colour");
 
-const configData = fs.readFileSync("config.json");
-const config = JSON.parse(configData);
+const config = yaml.load(fs.readFileSync('config/config.yml', 'utf8'));
+const { videoPath, framesDir, processMode, frameRate, sizeX, sizeY, pixelWidth } = config;
+const modeConfig = config[processMode];
 
-config.monochrome.processFrame = processMonochromeFrame;
-config.colour.processFrame = processColourFrame;
-
-const { videoPath, framesDir, frameRate, processMode } = config;
-const currentConfig = config[processMode];
-
-if (!currentConfig) {
-    console.error("無効な処理モードが指定されました。'monochrome' または 'colour' を指定してください。");
+if (!modeConfig) {
+    console.error("無効な処理モードが指定されました。'monochrome' または 'color' を指定してください。");
     process.exit(1);
 }
 
+const framesDataDir = modeConfig.framesDataDir;
+const processFrame = processMode === 'color' ? processColourFrame : processMonochromeFrame;
+const processConfig = { framesDataDir, sizeX, sizeY };
+
 if (!fs.existsSync(framesDir)) fs.mkdirSync(framesDir);
-if (!fs.existsSync(currentConfig.framesDataDir)) fs.mkdirSync(currentConfig.framesDataDir);
+if (!fs.existsSync(framesDataDir)) fs.mkdirSync(framesDataDir, { recursive: true });
 
 ffmpeg.ffprobe(videoPath, (err, metadata) => {
     if (err) {
-        console.error(err);
+        console.error("ffprobeエラー:", err);
         return;
     }
-    const duration = metadata.format.duration;
-    const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
-    const fps = eval(videoStream.r_frame_rate);
-    const totalFrames = Math.floor(duration * fps);
-    console.log(`動画の全フレーム数: ${totalFrames}`);
 });
 
 ffmpeg(videoPath)
@@ -44,7 +39,7 @@ ffmpeg(videoPath)
             const file = frameFiles[i];
             const frameNumber = i + 1;
             try {
-                await currentConfig.processFrame(`${framesDir}/${file}`, frameNumber, currentConfig);
+                await processFrame(`${framesDir}/${file}`, frameNumber, processConfig);
                 console.log(`フレーム${frameNumber}を処理`);
             } catch (error) {
                 console.error(`フレーム処理エラー${frameNumber}:`, error);
@@ -52,8 +47,37 @@ ffmpeg(videoPath)
         }
 
         console.log("すべてのフレームデータが生成されました！");
+        
+        generateLuaScript(frameFiles.length);
     })
     .on("error", (err) => {
         console.error("FFmpeg エラー:", err);
     })
     .run();
+
+function generateLuaScript(totalFrames) {
+    const luaScriptName = processMode === 'color' ? 'colour-drawing.lua' : 'drawing.lua';
+    const templatePath = `bin/${luaScriptName}`;
+    const outputPath = luaScriptName;
+    
+    try {
+        let template = fs.readFileSync(templatePath, 'utf8');
+
+        const luaFrameDataDir = `./${framesDataDir}`;
+        
+        template = template.replace(/(local frameDataDir = ).*/, `$1"${luaFrameDataDir}" -- フレームデータのディレクトリのパス`);
+        template = template.replace(/(local frameHeight = ).*/, `$1${sizeY} -- 縦サイズ（config/config.ymlのサイズと同じにする）`);
+        template = template.replace(/(local totalFrames = ).*/, `$1${totalFrames} -- 何フレーム分描画するのか（テキストファイルの個数分を書く）`);
+        template = template.replace(/(local pixelWidth = ).*/, `$1${pixelWidth} -- 各ピクセルに対応するアイテムの長さ`);
+
+        if (processMode === 'color') {
+            template = template.replace(/(local sizeX = ).*/, `$1${sizeX} -- 横サイズ（config/config.ymlのサイズと同じにする）`);
+        }
+
+        fs.writeFileSync(outputPath, template);
+        console.log(`Luaスクリプト ${outputPath} をプロジェクトルートに生成しました。`);
+
+    } catch (error) {
+        console.error(`Luaスクリプトの生成エラー: ${error}`);
+    }
+}

@@ -1,15 +1,6 @@
 const sharp = require("sharp");
 const fs = require("fs");
 
-/**
- * @param {string} imagePath
- * @param {number} frameNumber
- * @param {object} options
- * @param {string} options.framesDataDir
- * @param {number} options.sizeX
- * @param {number} options.sizeY
- */
-
 async function processColourFrame(imagePath, frameNumber, { framesDataDir, sizeX, sizeY }) {
     const frameDataPath = `${framesDataDir}/frame_${frameNumber}.txt`;
     const { data, info } = await sharp(imagePath)

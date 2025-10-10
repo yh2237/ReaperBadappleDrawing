@@ -1,0 +1,11 @@
+videoPath: "input.mp4"
+framesDir: "frames"
+processMode: "monochrome" # "monochrome" or "color"
+frameRate: 30
+sizeX: 33
+sizeY: 25
+pixelWidth: 0.1
+monochrome:
+  framesDataDir: "frames_data"
+color:
+  framesDataDir: "colour-frames_data"
