@@ -1,8 +1,31 @@
-local frameDataDir = "./colour-frames_data" -- フレームデータのディレクトリのパス
-local frameHeight = 25 -- 縦サイズ（config/config.ymlのサイズと同じにする）
-local sizeX = 33 -- 横サイズ（config/config.ymlのサイズと同じにする）
-local totalFrames = 2151 -- 何フレーム分描画するのか（テキストファイルの個数分を書く）
-local pixelWidth = 0.1 -- 各ピクセルに対応するアイテムの長さ
+-- ===== 設定 =====
+-- プロジェクトルートの絶対パスを入力してください
+local baseDir = ""
+-- フレームデータのディレクトリ名（config.json の colour.framesDataDir と合わせる）
+local frameDataDirName = "colour-frames_data"
+-- 縦サイズ（config.json の sizeY と合わせる）
+local frameHeight = 25
+-- 横サイズ（config.json の sizeX と合わせる）
+local sizeX = 33
+-- 各ピクセルに対応するアイテムの長さ
+local pixelWidth = 0.1
+-- ===============
+
+local frameDataDir = baseDir .. "\\" .. frameDataDirName
+
+function countFrameFiles()
+    local count = 0
+    while true do
+        local filePath = frameDataDir .. "\\frame_" .. (count + 1) .. ".txt"
+        local file = io.open(filePath, "r")
+        if not file then
+            break
+        end
+        file:close()
+        count = count + 1
+    end
+    return count
+end
 
 function rgbToReaperColor(r, g, b)
     return 0x01000000 + r + g * 256 + b * 65536
@@ -20,15 +43,11 @@ function initializeTracks()
 end
 
 function loadFrameData(frameNumber)
-
     local frameFilePath = frameDataDir .. "\\frame_" .. frameNumber .. ".txt"
-
-    reaper.ShowConsoleMsg("フレームを処理" .. frameFilePath .. "\n")
 
     local file = io.open(frameFilePath, "r")
     if not file then
         reaper.ShowConsoleMsg("エラー: フレームファイルを読み込めません: " .. frameFilePath .. "\n")
-
         return nil
     end
 
@@ -42,9 +61,8 @@ function loadFrameData(frameNumber)
 
         if lineLength ~= expectedLength then
             reaper.ShowConsoleMsg(string.format(
-                "警告: フレーム %d、行 %d の行の長さが一致しませんでした %d 文字必要ですが、%d 文字でした。\n", frameNumber, y,
-                expectedLength, lineLength))
-
+                "警告: フレーム %d、行 %d の行の長さが一致しません。%d 文字必要ですが、%d 文字でした。\n",
+                frameNumber, y, expectedLength, lineLength))
         end
 
         for x = 1, sizeX do
@@ -52,7 +70,6 @@ function loadFrameData(frameNumber)
             local endIndex = startIndex + 5
 
             if endIndex > lineLength then
-
                 break
             end
 
@@ -75,7 +92,8 @@ function loadFrameData(frameNumber)
     file:close()
 
     if y - 1 ~= frameHeight then
-        reaper.ShowConsoleMsg(string.format("警告: フレーム %d の行数が一致しません。%d 行が正常値です\n",
+        reaper.ShowConsoleMsg(string.format(
+            "警告: フレーム %d の行数が一致しません。%d 行が正常値ですが、%d 行でした。\n",
             frameNumber, frameHeight, y - 1))
     end
 
@@ -93,38 +111,22 @@ function processTrack(frameData, y)
         return
     end
 
-    local x = 1
-    while x <= #rowData do
+    for x = 1, #rowData do
         local pixelColor = rowData[x]
         local r, g, b = pixelColor[1], pixelColor[2], pixelColor[3]
 
-        if r == 0 and g == 0 and b == 0 then
-            x = x + 1
-        else
-            local startX = x
-            local currentR, currentG, currentB = r, g, b
-            local endX = x
-            while endX < #rowData do
-                local nextPixelColor = rowData[endX + 1]
-                if nextPixelColor[1] == currentR and nextPixelColor[2] == currentG and nextPixelColor[3] == currentB then
-                    endX = endX + 1
-                else
-                    break
-                end
-            end
+        if r ~= nil and g ~= nil and b ~= nil and (r ~= 0 or g ~= 0 or b ~= 0) then
+            local startPos = (x - 1) * pixelWidth
+            local itemLength = pixelWidth
 
-            local startPos = (startX - 1) * pixelWidth
-            local itemLength = (endX - startX + 1) * pixelWidth
             local item = reaper.AddMediaItemToTrack(track)
-
             if item then
                 reaper.SetMediaItemInfo_Value(item, "D_POSITION", startPos)
                 reaper.SetMediaItemInfo_Value(item, "D_LENGTH", itemLength)
-                local color = rgbToReaperColor(currentR, currentG, currentB)
+
+                local color = rgbToReaperColor(r, g, b)
                 reaper.SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", color)
             end
-
-            x = endX + 1
         end
     end
 end
@@ -150,7 +152,7 @@ function clearItems()
     end
 end
 
-function processFrame(frameNumber)
+function processFrame(frameNumber, totalFrames)
     if frameNumber > totalFrames then
         reaper.ShowConsoleMsg("すべてのフレームが処理されました\n")
         return
@@ -159,7 +161,7 @@ function processFrame(frameNumber)
     local frameData = loadFrameData(frameNumber)
     if not frameData then
         reaper.defer(function()
-            processFrame(frameNumber + 1)
+            processFrame(frameNumber + 1, totalFrames)
         end)
         return
     end
@@ -168,14 +170,22 @@ function processFrame(frameNumber)
     drawFrame(frameData)
 
     reaper.defer(function()
-        processFrame(frameNumber + 1)
+        processFrame(frameNumber + 1, totalFrames)
     end)
 end
 
 function main()
     reaper.ShowConsoleMsg("スクリプト開始\n")
+
+    local totalFrames = countFrameFiles()
+    if totalFrames == 0 then
+        reaper.ShowConsoleMsg("エラー: フレームデータが見つかりません: " .. frameDataDir .. "\n")
+        return
+    end
+    reaper.ShowConsoleMsg("検出されたフレーム数: " .. totalFrames .. "\n")
+
     initializeTracks()
-    processFrame(1)
+    processFrame(1, totalFrames)
 end
 
 main()

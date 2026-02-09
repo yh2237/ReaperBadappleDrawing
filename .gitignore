@@ -1,4 +1,15 @@
-node_modules
+node_modules/
+
+frames/
+frames_data/
+colour-frames_data/
+screen_frames_data/
+
+input.mp4
+
+badApple_data/
+colour-UgokuUgoku_data/
+
 .DS_Store
-.vscode
+
 package-lock.json
