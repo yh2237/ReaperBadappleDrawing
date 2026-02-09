@@ -44,7 +44,7 @@ npm install
 | `npm run displays` | 利用可能なディスプレイ一覧を表示 |
 | `npm run clean` | 生成済みフレームデータを全削除 |
 
-### 付属データを使う場合
+### サンプルデータを使う場合
 
 1. `data/badApple_data.zip`（モノクロ）または `data/colour-UgokuUgoku_data.zip`（カラー）を解凍
 2. `scripts/` 内の対応するLuaスクリプトを開き、先頭の `baseDir` と `frameDataDirName` を自分の環境に合わせて変更
@@ -134,7 +134,7 @@ npm run clean
 ```
 ├── config.json               # 設定ファイル
 ├── src/
-│   ├── index.js              # メインスクリプト（3モード対応）
+│   ├── index.js              # メインスクリプト
 │   ├── get.js                # ディスプレイ一覧表示
 │   ├── clean.js              # 生成データ削除
 │   └── util/
